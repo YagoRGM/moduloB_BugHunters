@@ -6,72 +6,100 @@ import seaborn as sns
 from datetime import datetime
 import os
 import random
+from colorama import Fore, Style, init
 
-# ----------------- CONFIGURAÇÃO -----------------
+init(autoreset=True)  # Para colorir texto no console
+
+# ================== CONFIGURAÇÃO ==================
 PORTA_SERIAL = 'COM10'
 BAUDRATE = 9600
 
-# Arquivos
 CSV_FILE = os.path.join('python', 'dados_sensores.csv')
 LOG_FILE = os.path.join('python', 'anomalias.log')
 
-# Limites
 TEMP_MAX = 30.0
 UMID_MIN = 40.0
 UMID_MAX = 70.0
 
-# ----------------- INICIALIZAÇÃO -----------------
+# ================== INICIALIZAÇÃO ==================
 os.makedirs('python', exist_ok=True)
 
-# Simulação: caso não tenha serial, comentar a linha abaixo
 try:
     ser = serial.Serial(PORTA_SERIAL, BAUDRATE, timeout=1)
-    print(f"📡 Conectado à porta {PORTA_SERIAL}")
+    print(f"{Fore.CYAN}📡 Conectado à porta {PORTA_SERIAL}")
 except Exception:
-    print(f"⚙️ Modo simulação ativado (sem conexão serial).")
+    print(f"{Fore.YELLOW}⚙️  Modo simulação ativado (sem conexão serial).")
     ser = None
 
-# DataFrame inicial
 if not os.path.isfile(CSV_FILE):
     df = pd.DataFrame(columns=['timestamp', 'node', 'temperatura', 'umidade'])
     df.to_csv(CSV_FILE, index=False)
 else:
     df = pd.read_csv(CSV_FILE)
 
-# ----------------- ESTILO DO GRÁFICO -----------------
-plt.ion()
-sns.set_theme(style='whitegrid')
-plt.style.use('dark_background')
-plt.figure(figsize=(12, 6))
-plt.rcParams['axes.facecolor'] = '#111'
-plt.rcParams['figure.facecolor'] = '#000'
-plt.rcParams['axes.edgecolor'] = '#444'
-plt.rcParams['grid.color'] = '#333'
-
-# ----------------- FUNÇÃO DE SIMULAÇÃO -----------------
+# ================== SIMULAÇÃO DE LEITURA ==================
 base_temp = 25.0
 base_umid = 55.0
-variacoes = [3, -2, 2, -3, 1, -1]  # padrão de variação cíclica
-indice_var = 0
+contador_sim = 0
 
 def simular_leitura():
-    """Gera dados fictícios de temperatura e umidade com leve oscilação."""
-    global base_temp, base_umid, indice_var
-    var = variacoes[indice_var % len(variacoes)]
-    base_temp += var * 0.3  # ajuste gradual
-    base_umid += random.uniform(-1.5, 1.5)
-    base_temp = max(20, min(35, base_temp))
-    base_umid = max(35, min(75, base_umid))
-    indice_var += 1
-    return f"Node1 | Temp: {base_temp:.2f}°C | Umid: {base_umid:.2f}"
+    """
+    Gera dados normais e anomalias a cada 4 leituras:
+    - 2 normais
+    - 1 anomalia alta
+    - 1 anomalia baixa
+    """
+    global base_temp, base_umid, contador_sim
+    contador_sim += 1
 
-# ----------------- LOOP PRINCIPAL -----------------
+    fase = contador_sim % 4
+
+    # --- Valores normais ---
+    if fase in [1, 2]:
+        temp = base_temp + random.uniform(-0.5, 0.5)
+        umid = base_umid + random.uniform(-1.5, 1.5)
+    else:
+        # --- Valores anômalos ---
+        if fase == 3:
+            temp = TEMP_MAX + random.uniform(1, 5)  # alta
+            umid = UMID_MAX + random.uniform(1, 5)  # alta
+        else:
+            temp = TEMP_MAX - 15 - random.uniform(0, 5)  # baixa
+            umid = UMID_MIN - 10 - random.uniform(0, 5)  # baixa
+
+    # Atualiza base para próxima leitura
+    base_temp = temp
+    base_umid = umid
+
+    # Limitar valores possíveis
+    temp = round(max(0, min(50, temp)), 2)
+    umid = round(max(0, min(100, umid)), 2)
+
+    return f"Node1 | Temp: {temp:.2f}°C | Umid: {umid:.2f}"
+
+# ================== ESTILO DO GRÁFICO ==================
+plt.ion()
+sns.set_theme(style='whitegrid')
+plt.figure(figsize=(12, 6))
+
+plt.rcParams.update({
+    'axes.facecolor': '#ffffff',
+    'figure.facecolor': '#ffffff',
+    'axes.edgecolor': '#333',
+    'grid.color': '#ddd',
+    'axes.labelcolor': '#111',
+    'xtick.color': '#111',
+    'ytick.color': '#111',
+    'axes.titlecolor': '#007BFF'
+})
+
+# ================== LOOP PRINCIPAL ==================
 while True:
     try:
+        # Leitura
         if ser:
             linha = ser.readline().decode('utf-8', errors='ignore').strip()
         else:
-            # Modo simulação
             time.sleep(1)
             linha = "Recebido: " + simular_leitura()
 
@@ -82,9 +110,9 @@ while True:
                 node = parts[0].strip()
                 temp = float(parts[1].split(':')[1].replace('°C', '').strip())
                 umid = float(parts[2].split(':')[1].strip())
-                timestamp = datetime.now().strftime('%H:%M:%S')
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-                # Atualiza DataFrame
+                # Salva no DataFrame
                 novo_dado = pd.DataFrame([{
                     'timestamp': timestamp,
                     'node': node,
@@ -92,55 +120,54 @@ while True:
                     'umidade': umid
                 }])
                 df = pd.concat([df, novo_dado], ignore_index=True)
-                if len(df) > 30:  # mantém apenas os últimos 30 pontos
-                    df = df.tail(30)
+                df = df.tail(50)
                 df.to_csv(CSV_FILE, index=False)
 
-                # ----------------- ANOMALIAS -----------------
+                # ================= DETECÇÃO DE ANOMALIAS =================
                 anomalia = []
                 if temp > TEMP_MAX:
-                    anomalia.append(f"Temp alta ({temp}°C)")
+                    anomalia.append(f"Temperatura alta ({temp}°C)")
                 if umid < UMID_MIN or umid > UMID_MAX:
-                    anomalia.append(f"Umid fora ({umid}%)")
+                    anomalia.append(f"Umidade fora dos limites ({umid}%)")
+
                 if anomalia:
+                    alerta_texto = f"{timestamp} | {node} | {' | '.join(anomalia)}"
                     with open(LOG_FILE, 'a') as f:
-                        f.write(f'{timestamp} | {node} | {" | ".join(anomalia)}\n')
-                    print(f"⚠️ {timestamp}: {' | '.join(anomalia)}")
+                        f.write(alerta_texto + "\n")
+                    print(f"{Fore.RED}⚠️ ANOMALIA DETECTADA: {alerta_texto}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.GREEN}✅ {timestamp} | {node} OK - Temp: {temp}°C | Umid: {umid}%")
 
-                # ----------------- GRÁFICO -----------------
+                # ================= GRÁFICO =================
                 plt.clf()
-                plt.title(f"🌡️ Monitoramento em tempo real ({node})", fontsize=18, color='#00c1ff', pad=15)
-                plt.xlabel("Tempo", fontsize=12, color='#ddd')
-                plt.ylabel("Valor", fontsize=12, color='#ddd')
+                plt.title(f"🌡️ Monitoramento em Tempo Real ({node})", fontsize=18, pad=15)
+                plt.xlabel("Timestamp", fontsize=12)
+                plt.ylabel("Valor", fontsize=12)
 
-                # Linhas de limite
-                plt.axhline(TEMP_MAX, color='red', linestyle='--', linewidth=1.2, label=f'Temp Max {TEMP_MAX}°C')
-                plt.axhline(UMID_MIN, color='orange', linestyle='--', linewidth=1.2, label=f'Umid Min {UMID_MIN}%')
-                plt.axhline(UMID_MAX, color='orange', linestyle='--', linewidth=1.2, label=f'Umid Max {UMID_MAX}%')
+                plt.axhline(TEMP_MAX, color='red', linestyle='--', linewidth=1.2, label=f'Temp Máx {TEMP_MAX}°C')
+                plt.axhline(UMID_MIN, color='#ffb300', linestyle='--', linewidth=1.2, label=f'Umid Mín {UMID_MIN}%')
+                plt.axhline(UMID_MAX, color='#3ddc97', linestyle='--', linewidth=1.2, label=f'Umid Máx {UMID_MAX}%')
 
                 df_node = df[df['node'] == node]
                 plt.plot(df_node['timestamp'], df_node['temperatura'],
-                         color='#ff6b6b', linewidth=2.5, marker='o', markersize=6, label='Temperatura (°C)')
+                         color='#ff6b6b', linewidth=2.3, marker='o', markersize=6, label='Temperatura (°C)')
                 plt.plot(df_node['timestamp'], df_node['umidade'],
-                         color='#1dd1a1', linewidth=2.5, marker='s', markersize=6, label='Umidade (%)')
+                         color='#1dd1a1', linewidth=2.3, marker='s', markersize=6, label='Umidade (%)')
 
-                plt.fill_between(df_node['timestamp'], df_node['temperatura'],
-                                 color='#ff6b6b', alpha=0.15)
-                plt.fill_between(df_node['timestamp'], df_node['umidade'],
-                                 color='#1dd1a1', alpha=0.15)
+                plt.fill_between(df_node['timestamp'], df_node['temperatura'], color='#ff6b6b', alpha=0.12)
+                plt.fill_between(df_node['timestamp'], df_node['umidade'], color='#1dd1a1', alpha=0.12)
 
-                plt.xticks(rotation=45, color='#bbb')
-                plt.yticks(color='#bbb')
-                plt.legend(facecolor='#111', edgecolor='#444', fontsize=10)
-                plt.grid(alpha=0.3, linestyle=':')
+                plt.xticks(rotation=45)
+                plt.legend(facecolor='#ffffff', edgecolor='#333', fontsize=10)
+                plt.grid(alpha=0.25, linestyle=':')
                 plt.tight_layout()
                 plt.pause(0.05)
 
             except Exception as parse_err:
-                print(f"❌ Erro ao processar linha: '{linha}' | {parse_err}")
+                print(f"{Fore.YELLOW}❌ Erro ao processar linha: '{linha}' | {parse_err}")
 
     except KeyboardInterrupt:
-        print("🛑 Encerrando script...")
+        print(f"{Fore.MAGENTA}🛑 Encerrando script...")
         if ser:
             ser.close()
         break
