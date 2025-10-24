@@ -1,4 +1,4 @@
-# 🌡️ SmartFactory Connect – Monitoramento IIoT de Temperatura e Umidade
+# 🌡️ SmartFactory Connect – Monitoramento IIoT de Temperatura e Umidade - Bug Hunters
 
 Este projeto implementa um **sistema de monitoramento de sensores de temperatura e umidade** voltado à **manufatura avançada**, simulando um ambiente **Industrial IoT (IIoT)**. Ele inclui:
 
@@ -123,6 +123,7 @@ python/
 ### 1. Com dados fictícios (anomalias garantidas)
 
 ```bash
+1. Com dados ficticios para variação e anomalias
 python analisa_sensores_valor_ficticio.py
 
 2. Com dados reais do Arduino
