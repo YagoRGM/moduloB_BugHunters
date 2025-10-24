@@ -154,6 +154,93 @@ UMID_MAX = 70.0    # Umidade máxima (%)
 
 Ajuste conforme ambiente ou sensores reais.
 
+
+🚀 Como Executar o Projeto – Passo a Passo Completo
+
+Siga este guia para colocar o sistema funcionando, desde o Arduino até o Python:
+
+1️⃣ Clonar o Repositório
+
+Abra o terminal e execute:
+
+git clone https://github.com/seu_usuario/seu_repositorio.git
+cd seu_repositorio/python
+
+2️⃣ Instalar Bibliotecas Python
+
+Instale todas as bibliotecas necessárias:
+
+pip install pandas matplotlib seaborn colorama openpyxl
+
+
+⚠️ openpyxl é necessária para exportar arquivos Excel.
+
+3️⃣ Preparar Arduino (Nó Sensor)
+
+Monte o circuito no Arduino conforme os vídeos e instruções do projeto:
+
+DHT11 para temperatura e umidade
+
+NRF24L01 (não ligar em 5V, usar 3.3V)
+
+Buzzer e micro servo para alarme e controle de esteira
+
+LEDs indicadores (opcional)
+
+Abra o Arduino IDE, carregue o código do transmissor (transmissor.ino) em cada Arduino.
+
+Ajuste os IDs de nó para Node1, Node2 e Node3.
+
+Configure os pinos de acordo com o hardware montado (DHT, buzzer, servo, NRF24L01).
+
+4️⃣ Preparar Arduino (Estação Receptora)
+
+Monte o segundo Arduino como estação central.
+
+Carregue o código do receptor (receptor.ino).
+
+Conecte ao computador via USB para ler os dados pelo Monitor Serial.
+
+5️⃣ Ajustar Porta Serial no Python
+
+No script analisa_sensores.py, configure a porta correta do Arduino:
+
+import serial
+ser = serial.Serial('COM3', 9600)  # Substitua COM3 pela porta do seu Arduino
+linha = ser.readline().decode().strip()
+# Parse para timestamp, node, temperatura, umidade
+
+6️⃣ Executar Scripts Python
+
+Para dados fictícios (testes de anomalia garantida):
+
+python analisa_sensores_valor_ficticio.py
+
+
+Para dados reais do Arduino:
+
+python analisa_sensores.py
+
+
+Durante a execução, o gráfico será atualizado em tempo real e alertas de anomalias aparecerão no terminal.
+
+7️⃣ Exportar Relatórios
+
+Clique no botão “Exportar Relatório” no gráfico
+
+Ou finalize o script (Ctrl+C) para gerar automaticamente.
+
+Relatórios serão salvos na pasta relatorios/ em Excel e Markdown.
+
+8️⃣ Configuração de Limites (opcional)
+TEMP_MAX = 30.0    # Temperatura máxima (°C)
+UMID_MIN = 40.0    # Umidade mínima (%)
+UMID_MAX = 70.0    # Umidade máxima (%)
+
+
+Ajuste conforme ambiente ou sensores reais.
+
+
 📌 Conclusão
 
 Este projeto oferece:
